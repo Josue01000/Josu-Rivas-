@@ -1,0 +1,122 @@
+{
+  "entities": {
+    "AutomationAgent": {
+      "title": "AutomationAgent",
+      "description": "Autonomous AI agent rule connecting WhatsApp, Gmail, Calendar, or Gemini App workflows.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Owner Firebase Auth UID." },
+        "name": { "type": "string", "description": "Agent display name." },
+        "channel": {
+          "type": "string",
+          "enum": ["whatsapp", "gmail", "calendar", "gemini_app", "omnichannel"],
+          "description": "Target channel or connector."
+        },
+        "description": { "type": "string", "description": "Summary of what the agent automates." },
+        "triggerCondition": { "type": "string", "description": "Keywords, sender filter, or NLP intent trigger." },
+        "actionTemplate": { "type": "string", "description": "Reply or workflow action template." },
+        "autoExecute": { "type": "boolean", "description": "Whether the agent acts automatically when matched." },
+        "enabled": { "type": "boolean", "description": "Whether the agent is currently active." },
+        "runsCount": { "type": "integer", "description": "Number of times this agent has executed." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp (FieldValue.serverTimestamp())." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp (FieldValue.serverTimestamp())." }
+      },
+      "required": ["userId", "name", "channel", "description", "triggerCondition", "actionTemplate", "autoExecute", "enabled", "runsCount", "createdAt", "updatedAt"]
+    },
+    "DataRecord": {
+      "title": "DataRecord",
+      "description": "Structured data item captured and classified from WhatsApp, Gmail, Calendar, or Gemini App.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Owner Firebase Auth UID." },
+        "sourceApp": {
+          "type": "string",
+          "enum": ["whatsapp", "gmail", "calendar", "gemini_app", "manual"],
+          "description": "Origin app of the message or data."
+        },
+        "category": {
+          "type": "string",
+          "enum": ["Prioritario", "Facturas", "Reuniones", "Clientes", "Resumen IA", "Archivado", "General"],
+          "description": "NLP classification category."
+        },
+        "intent": { "type": "string", "description": "Recognized NLP intent." },
+        "title": { "type": "string", "description": "Record or email subject/headline." },
+        "content": { "type": "string", "description": "Body or summary content." },
+        "extractedEntities": { "type": "string", "description": "Extracted dates, people, amounts, or action items." },
+        "suggestedReply": { "type": "string", "description": "AI-drafted reply or next step." },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "executed", "archived"],
+          "description": "Processing status."
+        },
+        "eventTitle": { "type": "string", "description": "Extracted calendar event title if applicable." },
+        "eventIsoDateTime": { "type": "string", "description": "Extracted calendar ISO-8601 date-time if applicable." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp (FieldValue.serverTimestamp())." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp (FieldValue.serverTimestamp())." }
+      },
+      "required": ["userId", "sourceApp", "category", "intent", "title", "content", "extractedEntities", "suggestedReply", "status", "eventTitle", "eventIsoDateTime", "createdAt", "updatedAt"]
+    },
+    "GeminiCustomApp": {
+      "title": "GeminiCustomApp",
+      "description": "User's custom Gemini chat mini-app connected for summaries and downstream actions.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Owner Firebase Auth UID." },
+        "name": { "type": "string", "description": "Name of the Gemini chat app." },
+        "purpose": { "type": "string", "description": "Short purpose description." },
+        "systemPrompt": { "type": "string", "description": "Prompt/instructions copied from the Gemini chat app." },
+        "targetChannel": {
+          "type": "string",
+          "enum": ["whatsapp", "gmail", "calendar", "data_vault"],
+          "description": "Preferred output action target."
+        },
+        "lastResult": { "type": "string", "description": "Most recent summary or output." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp (FieldValue.serverTimestamp())." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp (FieldValue.serverTimestamp())." }
+      },
+      "required": ["userId", "name", "purpose", "systemPrompt", "targetChannel", "lastResult", "createdAt", "updatedAt"]
+    },
+    "AgentExecutionLog": {
+      "title": "AgentExecutionLog",
+      "description": "Immutable log entry of an autonomous agent execution or NLP classification.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Owner Firebase Auth UID." },
+        "agentName": { "type": "string", "description": "Name of the agent that executed." },
+        "channel": {
+          "type": "string",
+          "enum": ["whatsapp", "gmail", "calendar", "gemini_app", "omnichannel"],
+          "description": "Channel involved."
+        },
+        "detectedIntent": { "type": "string", "description": "NLP intent detected." },
+        "inputPreview": { "type": "string", "description": "Short snippet of processed input." },
+        "outputAction": { "type": "string", "description": "Resulting action or dispatch." },
+        "status": {
+          "type": "string",
+          "enum": ["success", "queued", "archived"],
+          "description": "Execution outcome."
+        },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp (FieldValue.serverTimestamp())." }
+      },
+      "required": ["userId", "agentName", "channel", "detectedIntent", "inputPreview", "outputAction", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/agents/{agentId}": {
+      "schema": { "$ref": "#/entities/AutomationAgent" },
+      "description": "User-owned autonomous automation agents."
+    },
+    "/users/{userId}/data_records/{recordId}": {
+      "schema": { "$ref": "#/entities/DataRecord" },
+      "description": "User-owned structured data records, triaged Gmail items, WhatsApp messages, and extracted events."
+    },
+    "/users/{userId}/gemini_apps/{appId}": {
+      "schema": { "$ref": "#/entities/GeminiCustomApp" },
+      "description": "User-owned custom Gemini chat apps integrated for execution and action chaining."
+    },
+    "/users/{userId}/execution_logs/{logId}": {
+      "schema": { "$ref": "#/entities/AgentExecutionLog" },
+      "description": "Append-only user-owned audit log of autonomous agent executions."
+    }
+  }
+}

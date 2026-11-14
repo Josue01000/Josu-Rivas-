@@ -1,0 +1,6 @@
+{
+  "name": "Nexo AI",
+  "description": "Plataforma de agentes de IA y automatización inteligente para conectar WhatsApp, Gmail, Calendario, tu app personalizada de Gemini y gestión de datos.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

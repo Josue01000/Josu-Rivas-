@@ -1,0 +1,195 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidChannel(channel) {
+      return channel in ['whatsapp', 'gmail', 'calendar', 'gemini_app', 'omnichannel'];
+    }
+
+    function isValidSourceApp(source) {
+      return source in ['whatsapp', 'gmail', 'calendar', 'gemini_app', 'manual'];
+    }
+
+    function isValidCategory(category) {
+      return category in ['Prioritario', 'Facturas', 'Reuniones', 'Clientes', 'Resumen IA', 'Archivado', 'General'];
+    }
+
+    function isValidRecordStatus(status) {
+      return status in ['pending', 'executed', 'archived'];
+    }
+
+    function isValidTargetChannel(channel) {
+      return channel in ['whatsapp', 'gmail', 'calendar', 'data_vault'];
+    }
+
+    function isValidAutomationAgent(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
+             data.channel is string && isValidChannel(data.channel) &&
+             data.description is string && data.description.size() <= 400 &&
+             data.triggerCondition is string && data.triggerCondition.size() >= 1 && data.triggerCondition.size() <= 300 &&
+             data.actionTemplate is string && data.actionTemplate.size() >= 1 && data.actionTemplate.size() <= 1000 &&
+             data.autoExecute is bool &&
+             data.enabled is bool &&
+             data.runsCount is int && data.runsCount >= 0 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidDataRecord(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.sourceApp is string && isValidSourceApp(data.sourceApp) &&
+             data.category is string && isValidCategory(data.category) &&
+             data.intent is string && data.intent.size() >= 1 && data.intent.size() <= 120 &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 200 &&
+             data.content is string && data.content.size() <= 5000 &&
+             data.extractedEntities is string && data.extractedEntities.size() <= 1500 &&
+             data.suggestedReply is string && data.suggestedReply.size() <= 2000 &&
+             data.status is string && isValidRecordStatus(data.status) &&
+             data.eventTitle is string && data.eventTitle.size() <= 200 &&
+             data.eventIsoDateTime is string && data.eventIsoDateTime.size() <= 64 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidGeminiCustomApp(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
+             data.purpose is string && data.purpose.size() <= 300 &&
+             data.systemPrompt is string && data.systemPrompt.size() >= 1 && data.systemPrompt.size() <= 4000 &&
+             data.targetChannel is string && isValidTargetChannel(data.targetChannel) &&
+             data.lastResult is string && data.lastResult.size() <= 5000 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidExecutionLog(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.agentName is string && data.agentName.size() >= 1 && data.agentName.size() <= 120 &&
+             data.channel is string && isValidChannel(data.channel) &&
+             data.detectedIntent is string && data.detectedIntent.size() >= 1 && data.detectedIntent.size() <= 120 &&
+             data.inputPreview is string && data.inputPreview.size() <= 400 &&
+             data.outputAction is string && data.outputAction.size() >= 1 && data.outputAction.size() <= 600 &&
+             data.status is string && data.status in ['success', 'queued', 'archived'] &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    match /users/{userId}/agents/{agentId} {
+      allow list: if isOwner(userId);
+      allow get: if isOwner(userId) && isValidId(agentId);
+
+      allow create: if isOwner(userId) &&
+                       isValidId(agentId) &&
+                       incoming().keys().hasAll(['userId', 'name', 'channel', 'description', 'triggerCondition', 'actionTemplate', 'autoExecute', 'enabled', 'runsCount', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['userId', 'name', 'channel', 'description', 'triggerCondition', 'actionTemplate', 'autoExecute', 'enabled', 'runsCount', 'createdAt', 'updatedAt']) &&
+                       isValidAutomationAgent(incoming(), userId);
+
+      allow update: if isOwner(userId) &&
+                       isValidId(agentId) &&
+                       isValidAutomationAgent(incoming(), userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       (
+                         // Action 1: Toggle enabled / autoExecute
+                         incoming().diff(existing()).affectedKeys().hasOnly(['enabled', 'autoExecute', 'updatedAt']) ||
+                         // Action 2: Increment run counter
+                         (incoming().runsCount == existing().runsCount + 1 &&
+                          incoming().diff(existing()).affectedKeys().hasOnly(['runsCount', 'updatedAt'])) ||
+                         // Action 3: Edit configuration
+                         incoming().diff(existing()).affectedKeys().hasOnly(['name', 'channel', 'description', 'triggerCondition', 'actionTemplate', 'autoExecute', 'enabled', 'updatedAt'])
+                       );
+
+      allow delete: if isOwner(userId) && isValidId(agentId);
+    }
+
+    match /users/{userId}/data_records/{recordId} {
+      allow list: if isOwner(userId);
+      allow get: if isOwner(userId) && isValidId(recordId);
+
+      allow create: if isOwner(userId) &&
+                       isValidId(recordId) &&
+                       incoming().keys().hasAll(['userId', 'sourceApp', 'category', 'intent', 'title', 'content', 'extractedEntities', 'suggestedReply', 'status', 'eventTitle', 'eventIsoDateTime', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['userId', 'sourceApp', 'category', 'intent', 'title', 'content', 'extractedEntities', 'suggestedReply', 'status', 'eventTitle', 'eventIsoDateTime', 'createdAt', 'updatedAt']) &&
+                       isValidDataRecord(incoming(), userId);
+
+      allow update: if isOwner(userId) &&
+                       isValidId(recordId) &&
+                       isValidDataRecord(incoming(), userId) &&
+                       existing().status != 'archived' &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       (
+                         // Action 1: Archive or mark executed
+                         incoming().diff(existing()).affectedKeys().hasOnly(['status', 'category', 'updatedAt']) ||
+                         // Action 2: Update extracted details or reply
+                         incoming().diff(existing()).affectedKeys().hasOnly(['title', 'content', 'category', 'intent', 'extractedEntities', 'suggestedReply', 'eventTitle', 'eventIsoDateTime', 'status', 'updatedAt'])
+                       );
+
+      allow delete: if isOwner(userId) && isValidId(recordId);
+    }
+
+    match /users/{userId}/gemini_apps/{appId} {
+      allow list: if isOwner(userId);
+      allow get: if isOwner(userId) && isValidId(appId);
+
+      allow create: if isOwner(userId) &&
+                       isValidId(appId) &&
+                       incoming().keys().hasAll(['userId', 'name', 'purpose', 'systemPrompt', 'targetChannel', 'lastResult', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['userId', 'name', 'purpose', 'systemPrompt', 'targetChannel', 'lastResult', 'createdAt', 'updatedAt']) &&
+                       isValidGeminiCustomApp(incoming(), userId);
+
+      allow update: if isOwner(userId) &&
+                       isValidId(appId) &&
+                       isValidGeminiCustomApp(incoming(), userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       (
+                         // Action 1: Save latest execution result
+                         incoming().diff(existing()).affectedKeys().hasOnly(['lastResult', 'updatedAt']) ||
+                         // Action 2: Edit app definition
+                         incoming().diff(existing()).affectedKeys().hasOnly(['name', 'purpose', 'systemPrompt', 'targetChannel', 'lastResult', 'updatedAt'])
+                       );
+
+      allow delete: if isOwner(userId) && isValidId(appId);
+    }
+
+    match /users/{userId}/execution_logs/{logId} {
+      allow list: if isOwner(userId);
+      allow get: if isOwner(userId) && isValidId(logId);
+
+      allow create: if isOwner(userId) &&
+                       isValidId(logId) &&
+                       incoming().keys().hasAll(['userId', 'agentName', 'channel', 'detectedIntent', 'inputPreview', 'outputAction', 'status', 'createdAt']) &&
+                       incoming().keys().hasOnly(['userId', 'agentName', 'channel', 'detectedIntent', 'inputPreview', 'outputAction', 'status', 'createdAt']) &&
+                       isValidExecutionLog(incoming(), userId);
+
+      allow update: if false;
+      allow delete: if isOwner(userId) && isValidId(logId);
+    }
+  }
+}

@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Nexo AI</string>
+    <string name="notification_listener_label">Monitor de Agentes Nexo AI</string>
+</resources>
